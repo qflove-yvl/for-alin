@@ -37,6 +37,44 @@ MVP-платформа для создания и прохождения опр�
 - `postgres` — основная БД
 - `redis` — кэш/состояния
 
+
+## Если в PowerShell ошибка "docker не распознан"
+Это означает, что Docker Desktop не установлен или не добавлен в PATH.
+
+### Вариант A (рекомендуется): установить Docker Desktop
+1. Установите Docker Desktop для Windows.
+2. Перезапустите PowerShell.
+3. Проверьте командой:
+   ```powershell
+   docker --version
+   docker compose version
+   ```
+4. Затем снова запустите:
+   ```powershell
+   docker compose up --build
+   ```
+
+### Вариант B: запустить без Docker (локально)
+Нужны отдельно установленные PostgreSQL + Redis + Python 3.11.
+
+Backend:
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Bot (в новом окне PowerShell):
+```powershell
+cd bot
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m app.main
+```
+
 ## Первый запуск в Telegram
 1. Откройте вашего бота в Telegram.
 2. Отправьте `/start`.
