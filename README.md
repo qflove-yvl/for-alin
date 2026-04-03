@@ -97,6 +97,18 @@ docker compose exec bot python -c "import socket; print(socket.gethostbyname('ap
 В проекте добавлен автоповтор подключения: если сеть до Telegram временно недоступна,
 бот теперь не завершается сразу, а пробует переподключиться каждые 5 секунд.
 
+
+Если доступ к Telegram у провайдера блокируется, добавьте прокси в `.env`:
+```env
+TELEGRAM_PROXY=http://host.docker.internal:1080
+```
+(пример, подставьте ваш реальный HTTP/SOCKS5 proxy URL).
+
+После изменения `.env` перезапустите:
+```powershell
+docker compose up -d --build bot
+```
+
 ## Первый запуск в Telegram
 1. Откройте вашего бота в Telegram.
 2. Отправьте `/start`.
