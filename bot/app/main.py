@@ -2,18 +2,40 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.exceptions import TelegramNetworkError
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiohttp.client_exceptions import ClientConnectorError
 
 from app.config import settings
 from app.handlers.common import router
 
 
-async def main():
-    logging.basicConfig(level=logging.INFO)
+async def run_polling() -> None:
     bot = Bot(token=settings.bot_token)
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
+
+
+async def main():
+    logging.basicConfig(level=logging.INFO)
+
+    while True:
+        try:
+            await run_polling()
+        except (TelegramNetworkError, ClientConnectorError) as exc:
+            logging.exception(
+                "Telegram is unreachable (%s). Retrying in 5 seconds. "
+                "Check internet/firewall/VPN access to api.telegram.org:443",
+                exc,
+            )
+            await asyncio.sleep(5)
+        except Exception:
+            logging.exception("Bot crashed with unexpected error")
+            raise
 
 
 if __name__ == "__main__":

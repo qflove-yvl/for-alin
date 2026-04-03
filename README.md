@@ -79,6 +79,24 @@ pip install -r requirements.txt
 python -m app.main
 ```
 
+
+## Если бот падает с `Cannot connect to host api.telegram.org:443`
+Это сетевой доступ к Telegram API (не ошибка логики бота).
+
+Проверьте:
+1. Интернет на хосте и в Docker.
+2. Корпоративный/домашний firewall или антивирус (может блокировать Docker).
+3. VPN/прокси (в некоторых сетях без VPN Telegram недоступен).
+
+Полезная диагностика:
+```powershell
+docker compose logs bot --tail=100
+docker compose exec bot python -c "import socket; print(socket.gethostbyname('api.telegram.org'))"
+```
+
+В проекте добавлен автоповтор подключения: если сеть до Telegram временно недоступна,
+бот теперь не завершается сразу, а пробует переподключиться каждые 5 секунд.
+
 ## Первый запуск в Telegram
 1. Откройте вашего бота в Telegram.
 2. Отправьте `/start`.
