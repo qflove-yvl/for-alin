@@ -39,9 +39,23 @@ def validate_env() -> None:
         print("[warning] BOT_TOKEN is still default. Set real token in .env")
 
 
-def start_backend() -> subprocess.Popen:
+def build_runtime_env(base_dir: Path) -> dict[str, str]:
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(BACKEND_DIR)
+    env["PYTHONPATH"] = str(base_dir)
+
+    # Local single-command mode uses SQLite by default.
+    # Set APP_USE_POSTGRES=1 to keep PostgreSQL URL from .env.
+    if env.get("APP_USE_POSTGRES", "0") != "1":
+        sqlite_path = ROOT / "local.db"
+        env["DATABASE_URL"] = f"sqlite+pysqlite:///{sqlite_path.as_posix()}"
+        env.setdefault("REDIS_URL", "redis://localhost:6379/0")
+        print("[bootstrap] Using SQLite (local.db). Set APP_USE_POSTGRES=1 for PostgreSQL.")
+
+    return env
+
+
+def start_backend() -> subprocess.Popen:
+    env = build_runtime_env(BACKEND_DIR)
     cmd = [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     return subprocess.Popen(cmd, cwd=BACKEND_DIR, env=env)
 
@@ -60,8 +74,7 @@ def wait_backend_ready(timeout_s: int = 30) -> bool:
 
 
 def start_bot() -> subprocess.Popen:
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(BOT_DIR)
+    env = build_runtime_env(BOT_DIR)
     cmd = [sys.executable, "-m", "app.main"]
     return subprocess.Popen(cmd, cwd=BOT_DIR, env=env)
 

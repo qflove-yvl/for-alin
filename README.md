@@ -23,6 +23,8 @@ MVP-платформа для создания и прохождения опр�
 - запускает backend на `http://127.0.0.1:8000`;
 - ждёт healthcheck;
 - запускает Telegram-бота.
+- в режиме `python app.py` по умолчанию использует локальную SQLite (`local.db`) — чтобы старт был без PostgreSQL;
+- если нужен строго PostgreSQL, запусти: `APP_USE_POSTGRES=1 python app.py` (или через Docker Compose).
 
 > Перед запуском обязательно пропиши реальный `BOT_TOKEN` в `.env`.
 
