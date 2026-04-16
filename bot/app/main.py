@@ -18,32 +18,26 @@ def build_bot() -> Bot:
     return Bot(token=settings.bot_token)
 
 
-async def run_polling() -> None:
-    bot = build_bot()
-    dp = Dispatcher(storage=MemoryStorage())
-    dp.include_router(router)
-    try:
-        await dp.start_polling(bot)
-    finally:
-        await bot.session.close()
-
-
 async def main():
     logging.basicConfig(level=logging.INFO)
 
-    while True:
-        try:
-            await run_polling()
-        except (TelegramNetworkError, ClientConnectorError) as exc:
-            logging.exception(
-                "Telegram is unreachable (%s). Retrying in 5 seconds. "
-                "Set TELEGRAM_PROXY in .env or check internet/firewall/VPN to api.telegram.org:443",
-                exc,
-            )
-            await asyncio.sleep(5)
-        except Exception:
-            logging.exception("Bot crashed with unexpected error")
-            raise
+    bot = build_bot()
+    dp = Dispatcher(storage=MemoryStorage())
+    dp.include_router(router)
+
+    try:
+        while True:
+            try:
+                await dp.start_polling(bot)
+            except (TelegramNetworkError, ClientConnectorError) as exc:
+                logging.warning(
+                    "Telegram unreachable: %s. Retrying in 5s. "
+                    "Set TELEGRAM_PROXY in .env or check firewall/VPN.",
+                    exc,
+                )
+                await asyncio.sleep(5)
+    finally:
+        await bot.session.close()
 
 
 if __name__ == "__main__":
