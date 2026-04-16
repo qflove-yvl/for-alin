@@ -24,6 +24,7 @@ async def set_commands(bot: Bot) -> None:
         [
             BotCommand(command="start", description="Запуск и меню"),
             BotCommand(command="help", description="Список команд"),
+            BotCommand(command="cancel", description="Отменить текущий сценарий"),
             BotCommand(command="create_poll", description="Создать опрос"),
             BotCommand(command="my_polls", description="Мои опросы"),
             BotCommand(command="take_poll", description="Пройти опрос"),

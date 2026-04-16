@@ -190,6 +190,7 @@ docker compose up -d --build bot
 2. Отправьте `/start`.
 3. Дальше используйте команды:
    - `/help`
+   - `/cancel`
    - `/create_poll` (создаёт опрос и позволяет сразу добавить вопросы в чате)
    - `/my_polls`
    - `/take_poll`

@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from app.keyboards.main import main_keyboard, question_type_keyboard, yes_no_keyboard
-from app.services.api_client import APIClient
+from app.services.api_client import APIClient, APIClientError
 from app.states.poll_creation import PollCreation, PollPassing
 
 router = Router()
@@ -18,6 +18,7 @@ HELP_TEXT = (
     "Доступные команды:\n"
     "/start — регистрация и главное меню\n"
     "/help — показать это сообщение\n"
+    "/cancel — выйти из текущего сценария\n"
     "/create_poll — создать опрос (с добавлением вопросов в чате)\n"
     "/my_polls — мои опросы\n"
     "/take_poll — пройти опрос по ID\n"
@@ -25,9 +26,27 @@ HELP_TEXT = (
 )
 
 
+async def show_api_error(message: Message, err: Exception) -> None:
+    await message.answer(
+        f"Ошибка связи с API: {err}\nПроверьте, что backend запущен на {api.base_url}",
+        reply_markup=main_keyboard,
+    )
+
+
+@router.message(Command("cancel"))
+async def cancel_flow(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("Сценарий отменён. Вы в главном меню.", reply_markup=main_keyboard)
+
+
 @router.message(Command("start"))
 async def start(message: Message):
-    data = await api.create_user(message.from_user.id, message.from_user.username)
+    try:
+        data = await api.create_user(message.from_user.id, message.from_user.username)
+    except APIClientError as err:
+        await show_api_error(message, err)
+        return
+
     await message.answer(
         f"Привет! Ты зарегистрирован. user_id: {data['id']}\n\n{HELP_TEXT}",
         reply_markup=main_keyboard,
@@ -56,8 +75,14 @@ async def create_poll_title(message: Message, state: FSMContext):
 @router.message(PollCreation.waiting_for_description)
 async def create_poll_description(message: Message, state: FSMContext):
     data = await state.get_data()
-    user = await api.create_user(message.from_user.id, message.from_user.username)
-    poll = await api.create_poll(owner_id=user["id"], title=data["title"], description=message.text)
+
+    try:
+        user = await api.create_user(message.from_user.id, message.from_user.username)
+        poll = await api.create_poll(owner_id=user["id"], title=data["title"], description=message.text)
+    except APIClientError as err:
+        await show_api_error(message, err)
+        await state.clear()
+        return
 
     await state.update_data(poll_id=poll["id"], question_order=1)
     await state.set_state(PollCreation.waiting_for_add_question)
@@ -128,13 +153,18 @@ async def create_question_and_ask_more(message: Message, state: FSMContext, opti
     q_type = data["question_type"]
     q_order = data.get("question_order", 1)
 
-    question = await api.create_question(
-        poll_id=poll_id,
-        text=q_text,
-        q_type=q_type,
-        order=q_order,
-        options_json=options_json,
-    )
+    try:
+        question = await api.create_question(
+            poll_id=poll_id,
+            text=q_text,
+            q_type=q_type,
+            order=q_order,
+            options_json=options_json,
+        )
+    except APIClientError as err:
+        await show_api_error(message, err)
+        await state.clear()
+        return
 
     await state.update_data(question_order=q_order + 1)
     await state.set_state(PollCreation.waiting_for_add_question)
@@ -147,8 +177,13 @@ async def create_question_and_ask_more(message: Message, state: FSMContext, opti
 
 @router.message(Command("my_polls"))
 async def my_polls(message: Message):
-    user = await api.create_user(message.from_user.id, message.from_user.username)
-    polls = await api.user_polls(user["id"])
+    try:
+        user = await api.create_user(message.from_user.id, message.from_user.username)
+        polls = await api.user_polls(user["id"])
+    except APIClientError as err:
+        await show_api_error(message, err)
+        return
+
     if not polls:
         await message.answer("У вас пока нет опросов.")
         return
@@ -169,7 +204,13 @@ async def take_poll_id(message: Message, state: FSMContext):
         return
 
     poll_id = int(message.text)
-    questions = await api.poll_questions(poll_id)
+    try:
+        questions = await api.poll_questions(poll_id)
+    except APIClientError as err:
+        await show_api_error(message, err)
+        await state.clear()
+        return
+
     if not questions:
         await message.answer("У опроса нет вопросов.")
         await state.clear()
@@ -187,10 +228,11 @@ async def answer_question(message: Message, state: FSMContext):
     index = data["index"]
     current = questions[index]
 
-    user = await api.create_user(message.from_user.id, message.from_user.username)
-    response = await api.submit_answer(user["id"], current["id"], message.text)
-    if response.status_code not in (200, 201):
-        await message.answer(f"Ошибка сохранения ответа: {response.text}")
+    try:
+        user = await api.create_user(message.from_user.id, message.from_user.username)
+        await api.submit_answer(user["id"], current["id"], message.text)
+    except APIClientError as err:
+        await show_api_error(message, err)
         await state.clear()
         return
 
@@ -211,7 +253,12 @@ async def results(message: Message):
         await message.answer("Использование: /results <poll_id>")
         return
     poll_id = int(args[1])
-    payload = await api.poll_results(poll_id)
+    try:
+        payload = await api.poll_results(poll_id)
+    except APIClientError as err:
+        await show_api_error(message, err)
+        return
+
     await message.answer(
         f"Участников: {payload['participants']}\n"
         f"Распределения: {payload['distributions']}\n"
