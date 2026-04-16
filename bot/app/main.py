@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.exceptions import TelegramNetworkError
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand
 from aiohttp.client_exceptions import ClientConnectorError
 
 from app.config import settings
@@ -18,6 +19,19 @@ def build_bot() -> Bot:
     return Bot(token=settings.bot_token)
 
 
+async def set_commands(bot: Bot) -> None:
+    await bot.set_my_commands(
+        [
+            BotCommand(command="start", description="Запуск и меню"),
+            BotCommand(command="help", description="Список команд"),
+            BotCommand(command="create_poll", description="Создать опрос"),
+            BotCommand(command="my_polls", description="Мои опросы"),
+            BotCommand(command="take_poll", description="Пройти опрос"),
+            BotCommand(command="results", description="Результаты /results <id>"),
+        ]
+    )
+
+
 async def main():
     logging.basicConfig(level=logging.INFO)
 
@@ -28,6 +42,7 @@ async def main():
     try:
         while True:
             try:
+                await set_commands(bot)
                 await dp.start_polling(bot)
             except (TelegramNetworkError, ClientConnectorError) as exc:
                 logging.warning(

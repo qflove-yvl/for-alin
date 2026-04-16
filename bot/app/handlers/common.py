@@ -3,17 +3,36 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
+from app.keyboards.main import main_keyboard
 from app.services.api_client import APIClient
 from app.states.poll_creation import PollCreation, PollPassing
 
 router = Router()
 api = APIClient()
 
+HELP_TEXT = (
+    "Доступные команды:\n"
+    "/start — регистрация и главное меню\n"
+    "/help — показать это сообщение\n"
+    "/create_poll — создать опрос\n"
+    "/my_polls — мои опросы\n"
+    "/take_poll — пройти опрос по ID\n"
+    "/results <poll_id> — аналитика по опросу"
+)
+
 
 @router.message(Command("start"))
 async def start(message: Message):
     data = await api.create_user(message.from_user.id, message.from_user.username)
-    await message.answer(f"Привет! Твой user_id в системе: {data['id']}")
+    await message.answer(
+        f"Привет! Ты зарегистрирован. user_id: {data['id']}\n\n{HELP_TEXT}",
+        reply_markup=main_keyboard,
+    )
+
+
+@router.message(Command("help"))
+async def help_command(message: Message):
+    await message.answer(HELP_TEXT, reply_markup=main_keyboard)
 
 
 @router.message(Command("create_poll"))
@@ -35,7 +54,11 @@ async def create_poll_description(message: Message, state: FSMContext):
     user = await api.create_user(message.from_user.id, message.from_user.username)
     poll = await api.create_poll(owner_id=user["id"], title=data["title"], description=message.text)
     await state.clear()
-    await message.answer(f"Опрос создан! ID: {poll['id']}")
+    await message.answer(
+        f"Опрос создан! ID: {poll['id']}\n"
+        f"Дальше добавьте вопросы через API /questions/ или Swagger: http://127.0.0.1:8000/docs",
+        reply_markup=main_keyboard,
+    )
 
 
 @router.message(Command("my_polls"))
@@ -57,6 +80,10 @@ async def take_poll(message: Message, state: FSMContext):
 
 @router.message(PollPassing.waiting_for_poll_id)
 async def take_poll_id(message: Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("ID должен быть числом. Попробуйте снова.")
+        return
+
     poll_id = int(message.text)
     questions = await api.poll_questions(poll_id)
     if not questions:
@@ -85,7 +112,7 @@ async def answer_question(message: Message, state: FSMContext):
 
     index += 1
     if index >= len(questions):
-        await message.answer("Спасибо! Опрос завершён.")
+        await message.answer("Спасибо! Опрос завершён.", reply_markup=main_keyboard)
         await state.clear()
         return
 
@@ -110,4 +137,7 @@ async def results(message: Message):
 
 @router.message(F.text)
 async def fallback(message: Message):
-    await message.answer("Используйте команды: /start /create_poll /my_polls /take_poll /results")
+    await message.answer(
+        "Не понял команду. Нажмите /help или используйте кнопки меню.",
+        reply_markup=main_keyboard,
+    )

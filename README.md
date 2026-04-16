@@ -184,9 +184,12 @@ docker compose up -d --build bot
 ```
 
 ## Первый запуск в Telegram
+
+После `/start` бот теперь сразу показывает список команд и кнопки меню.
 1. Откройте вашего бота в Telegram.
 2. Отправьте `/start`.
 3. Дальше используйте команды:
+   - `/help`
    - `/create_poll`
    - `/my_polls`
    - `/take_poll`
