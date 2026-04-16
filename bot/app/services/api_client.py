@@ -30,6 +30,28 @@ class APIClient:
             response.raise_for_status()
             return response.json()
 
+    async def create_question(
+        self,
+        poll_id: int,
+        text: str,
+        q_type: str,
+        order: int,
+        options_json: str | None = None,
+    ):
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(
+                f"{self.base_url}/questions/",
+                json={
+                    "poll_id": poll_id,
+                    "text": text,
+                    "type": q_type,
+                    "order": order,
+                    "options_json": options_json,
+                },
+            )
+            response.raise_for_status()
+            return response.json()
+
     async def user_polls(self, user_id: int):
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(f"{self.base_url}/polls/user/{user_id}")

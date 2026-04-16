@@ -1,20 +1,24 @@
+import json
+
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
-from app.keyboards.main import main_keyboard
+from app.keyboards.main import main_keyboard, question_type_keyboard, yes_no_keyboard
 from app.services.api_client import APIClient
 from app.states.poll_creation import PollCreation, PollPassing
 
 router = Router()
 api = APIClient()
 
+QUESTION_TYPES = {"single_choice", "multi_choice", "scale_1_5", "open_text"}
+
 HELP_TEXT = (
     "Доступные команды:\n"
     "/start — регистрация и главное меню\n"
     "/help — показать это сообщение\n"
-    "/create_poll — создать опрос\n"
+    "/create_poll — создать опрос (с добавлением вопросов в чате)\n"
     "/my_polls — мои опросы\n"
     "/take_poll — пройти опрос по ID\n"
     "/results <poll_id> — аналитика по опросу"
@@ -37,6 +41,7 @@ async def help_command(message: Message):
 
 @router.message(Command("create_poll"))
 async def create_poll_start(message: Message, state: FSMContext):
+    await state.clear()
     await state.set_state(PollCreation.waiting_for_title)
     await message.answer("Введите название опроса")
 
@@ -53,11 +58,90 @@ async def create_poll_description(message: Message, state: FSMContext):
     data = await state.get_data()
     user = await api.create_user(message.from_user.id, message.from_user.username)
     poll = await api.create_poll(owner_id=user["id"], title=data["title"], description=message.text)
-    await state.clear()
+
+    await state.update_data(poll_id=poll["id"], question_order=1)
+    await state.set_state(PollCreation.waiting_for_add_question)
     await message.answer(
-        f"Опрос создан! ID: {poll['id']}\n"
-        f"Дальше добавьте вопросы через API /questions/ или Swagger: http://127.0.0.1:8000/docs",
-        reply_markup=main_keyboard,
+        f"Опрос создан! ID: {poll['id']}\nДобавить первый вопрос?",
+        reply_markup=yes_no_keyboard,
+    )
+
+
+@router.message(PollCreation.waiting_for_add_question)
+async def poll_add_question_decision(message: Message, state: FSMContext):
+    answer = (message.text or "").strip().lower()
+    if answer in {"да", "yes", "y"}:
+        await state.set_state(PollCreation.waiting_for_question_text)
+        await message.answer("Введите текст вопроса")
+        return
+
+    if answer in {"нет", "no", "n"}:
+        await state.clear()
+        await message.answer("Готово. Опрос сохранён.", reply_markup=main_keyboard)
+        return
+
+    await message.answer("Пожалуйста, выберите: Да или Нет.", reply_markup=yes_no_keyboard)
+
+
+@router.message(PollCreation.waiting_for_question_text)
+async def poll_question_text(message: Message, state: FSMContext):
+    await state.update_data(question_text=message.text)
+    await state.set_state(PollCreation.waiting_for_question_type)
+    await message.answer(
+        "Выберите тип вопроса:\n"
+        "- single_choice\n- multi_choice\n- scale_1_5\n- open_text",
+        reply_markup=question_type_keyboard,
+    )
+
+
+@router.message(PollCreation.waiting_for_question_type)
+async def poll_question_type(message: Message, state: FSMContext):
+    q_type = (message.text or "").strip()
+    if q_type not in QUESTION_TYPES:
+        await message.answer("Неверный тип. Выберите кнопку из меню типа вопроса.", reply_markup=question_type_keyboard)
+        return
+
+    await state.update_data(question_type=q_type)
+
+    if q_type in {"single_choice", "multi_choice"}:
+        await state.set_state(PollCreation.waiting_for_question_options)
+        await message.answer("Введите варианты через запятую. Пример: красный, синий, зелёный")
+        return
+
+    await create_question_and_ask_more(message, state, options_json=None)
+
+
+@router.message(PollCreation.waiting_for_question_options)
+async def poll_question_options(message: Message, state: FSMContext):
+    options = [item.strip() for item in (message.text or "").split(",") if item.strip()]
+    if len(options) < 2:
+        await message.answer("Нужно минимум 2 варианта. Введите через запятую.")
+        return
+
+    await create_question_and_ask_more(message, state, options_json=json.dumps(options, ensure_ascii=False))
+
+
+async def create_question_and_ask_more(message: Message, state: FSMContext, options_json: str | None) -> None:
+    data = await state.get_data()
+    poll_id = data["poll_id"]
+    q_text = data["question_text"]
+    q_type = data["question_type"]
+    q_order = data.get("question_order", 1)
+
+    question = await api.create_question(
+        poll_id=poll_id,
+        text=q_text,
+        q_type=q_type,
+        order=q_order,
+        options_json=options_json,
+    )
+
+    await state.update_data(question_order=q_order + 1)
+    await state.set_state(PollCreation.waiting_for_add_question)
+
+    await message.answer(
+        f"Вопрос добавлен (ID: {question['id']}). Добавить ещё вопрос?",
+        reply_markup=yes_no_keyboard,
     )
 
 

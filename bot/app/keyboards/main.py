@@ -8,3 +8,18 @@ main_keyboard = ReplyKeyboardMarkup(
     ],
     resize_keyboard=True,
 )
+
+yes_no_keyboard = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text="Да"), KeyboardButton(text="Нет")]],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)
+
+question_type_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="single_choice"), KeyboardButton(text="multi_choice")],
+        [KeyboardButton(text="scale_1_5"), KeyboardButton(text="open_text")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)
