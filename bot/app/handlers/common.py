@@ -12,31 +12,37 @@ from app.states.poll_creation import PollCreation, PollPassing
 router = Router()
 api = APIClient()
 
-QUESTION_TYPES = {"single_choice", "multi_choice", "scale_1_5", "open_text"}
+QUESTION_TYPE_MAP = {
+    "Один вариант": "single_choice",
+    "Несколько вариантов": "multi_choice",
+    "Шкала 1-5": "scale_1_5",
+    "Свободный текст": "open_text",
+}
 
 HELP_TEXT = (
-    "Доступные команды:\n"
-    "/start — регистрация и главное меню\n"
-    "/help — показать это сообщение\n"
-    "/cancel — выйти из текущего сценария\n"
-    "/create_poll — создать опрос (с добавлением вопросов в чате)\n"
-    "/my_polls — мои опросы\n"
-    "/take_poll — пройти опрос по ID\n"
-    "/results <poll_id> — аналитика по опросу"
+    "🤖 *Что умеет бот*\n\n"
+    "• 📝 Создать опрос\n"
+    "• 📚 Посмотреть мои опросы\n"
+    "• ✅ Пройти опрос по ID\n"
+    "• 📊 Посмотреть результаты\n"
+    "• ❌ Отменить текущий сценарий\n\n"
+    "Можно использовать кнопки меню или slash-команды:\n"
+    "/start /help /cancel /create_poll /my_polls /take_poll /results"
 )
 
 
 async def show_api_error(message: Message, err: Exception) -> None:
     await message.answer(
-        f"Ошибка связи с API: {err}\nПроверьте, что backend запущен на {api.base_url}",
+        f"⚠️ Ошибка связи с API: {err}\nПроверьте, что backend запущен на {api.base_url}",
         reply_markup=main_keyboard,
     )
 
 
 @router.message(Command("cancel"))
+@router.message(F.text == "❌ Отмена")
 async def cancel_flow(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("Сценарий отменён. Вы в главном меню.", reply_markup=main_keyboard)
+    await message.answer("❌ Сценарий отменён. Вы в главном меню.", reply_markup=main_keyboard)
 
 
 @router.message(Command("start"))
@@ -48,28 +54,31 @@ async def start(message: Message):
         return
 
     await message.answer(
-        f"Привет! Ты зарегистрирован. user_id: {data['id']}\n\n{HELP_TEXT}",
+        f"👋 Привет! Ты зарегистрирован. user_id: {data['id']}\n\n{HELP_TEXT}",
+        parse_mode="Markdown",
         reply_markup=main_keyboard,
     )
 
 
 @router.message(Command("help"))
+@router.message(F.text == "ℹ️ Помощь")
 async def help_command(message: Message):
-    await message.answer(HELP_TEXT, reply_markup=main_keyboard)
+    await message.answer(HELP_TEXT, parse_mode="Markdown", reply_markup=main_keyboard)
 
 
 @router.message(Command("create_poll"))
+@router.message(F.text == "📝 Создать опрос")
 async def create_poll_start(message: Message, state: FSMContext):
     await state.clear()
     await state.set_state(PollCreation.waiting_for_title)
-    await message.answer("Введите название опроса")
+    await message.answer("📝 Введите название опроса")
 
 
 @router.message(PollCreation.waiting_for_title)
 async def create_poll_title(message: Message, state: FSMContext):
     await state.update_data(title=message.text)
     await state.set_state(PollCreation.waiting_for_description)
-    await message.answer("Введите описание опроса")
+    await message.answer("📄 Введите описание опроса")
 
 
 @router.message(PollCreation.waiting_for_description)
@@ -87,7 +96,7 @@ async def create_poll_description(message: Message, state: FSMContext):
     await state.update_data(poll_id=poll["id"], question_order=1)
     await state.set_state(PollCreation.waiting_for_add_question)
     await message.answer(
-        f"Опрос создан! ID: {poll['id']}\nДобавить первый вопрос?",
+        f"✅ Опрос создан! ID: {poll['id']}\nДобавить первый вопрос?",
         reply_markup=yes_no_keyboard,
     )
 
@@ -97,12 +106,12 @@ async def poll_add_question_decision(message: Message, state: FSMContext):
     answer = (message.text or "").strip().lower()
     if answer in {"да", "yes", "y"}:
         await state.set_state(PollCreation.waiting_for_question_text)
-        await message.answer("Введите текст вопроса")
+        await message.answer("✍️ Введите текст вопроса")
         return
 
     if answer in {"нет", "no", "n"}:
         await state.clear()
-        await message.answer("Готово. Опрос сохранён.", reply_markup=main_keyboard)
+        await message.answer("🎉 Готово! Опрос сохранён.", reply_markup=main_keyboard)
         return
 
     await message.answer("Пожалуйста, выберите: Да или Нет.", reply_markup=yes_no_keyboard)
@@ -113,16 +122,15 @@ async def poll_question_text(message: Message, state: FSMContext):
     await state.update_data(question_text=message.text)
     await state.set_state(PollCreation.waiting_for_question_type)
     await message.answer(
-        "Выберите тип вопроса:\n"
-        "- single_choice\n- multi_choice\n- scale_1_5\n- open_text",
+        "Выберите тип вопроса:",
         reply_markup=question_type_keyboard,
     )
 
 
 @router.message(PollCreation.waiting_for_question_type)
 async def poll_question_type(message: Message, state: FSMContext):
-    q_type = (message.text or "").strip()
-    if q_type not in QUESTION_TYPES:
+    q_type = QUESTION_TYPE_MAP.get((message.text or "").strip())
+    if not q_type:
         await message.answer("Неверный тип. Выберите кнопку из меню типа вопроса.", reply_markup=question_type_keyboard)
         return
 
@@ -170,12 +178,13 @@ async def create_question_and_ask_more(message: Message, state: FSMContext, opti
     await state.set_state(PollCreation.waiting_for_add_question)
 
     await message.answer(
-        f"Вопрос добавлен (ID: {question['id']}). Добавить ещё вопрос?",
+        f"✅ Вопрос добавлен (ID: {question['id']}). Добавить ещё вопрос?",
         reply_markup=yes_no_keyboard,
     )
 
 
 @router.message(Command("my_polls"))
+@router.message(F.text == "📚 Мои опросы")
 async def my_polls(message: Message):
     try:
         user = await api.create_user(message.from_user.id, message.from_user.username)
@@ -188,10 +197,11 @@ async def my_polls(message: Message):
         await message.answer("У вас пока нет опросов.")
         return
     text = "\n".join([f"#{p['id']} — {p['title']}" for p in polls])
-    await message.answer(f"Ваши опросы:\n{text}")
+    await message.answer(f"📚 Ваши опросы:\n{text}")
 
 
 @router.message(Command("take_poll"))
+@router.message(F.text == "✅ Пройти опрос")
 async def take_poll(message: Message, state: FSMContext):
     await state.set_state(PollPassing.waiting_for_poll_id)
     await message.answer("Введите ID опроса")
@@ -218,7 +228,7 @@ async def take_poll_id(message: Message, state: FSMContext):
 
     await state.update_data(poll_id=poll_id, questions=questions, index=0)
     await state.set_state(PollPassing.answering_questions)
-    await message.answer(questions[0]["text"])
+    await message.answer(f"🚀 Начинаем!\n\n{questions[0]['text']}")
 
 
 @router.message(PollPassing.answering_questions)
@@ -238,7 +248,7 @@ async def answer_question(message: Message, state: FSMContext):
 
     index += 1
     if index >= len(questions):
-        await message.answer("Спасибо! Опрос завершён.", reply_markup=main_keyboard)
+        await message.answer("🎉 Спасибо! Опрос завершён.", reply_markup=main_keyboard)
         await state.clear()
         return
 
@@ -260,15 +270,20 @@ async def results(message: Message):
         return
 
     await message.answer(
-        f"Участников: {payload['participants']}\n"
+        f"📊 Участников: {payload['participants']}\n"
         f"Распределения: {payload['distributions']}\n"
         f"Средние шкал: {payload['scale_means']}"
     )
 
 
+@router.message(F.text == "📊 Результаты")
+async def results_hint(message: Message):
+    await message.answer("Введите команду в формате: /results <poll_id>")
+
+
 @router.message(F.text)
 async def fallback(message: Message):
     await message.answer(
-        "Не понял команду. Нажмите /help или используйте кнопки меню.",
+        "Не понял команду. Нажмите ℹ️ Помощь или используйте кнопки меню.",
         reply_markup=main_keyboard,
     )

@@ -16,7 +16,8 @@ def create_question(payload: QuestionCreate, db: Session = Depends(get_db)):
     if not poll:
         raise HTTPException(status_code=400, detail="Poll does not exist")
 
-    question = Question(**payload.model_dump(), type=payload.type.value)
+    data = payload.model_dump(exclude={"type"})
+    question = Question(**data, type=payload.type.value)
     db.add(question)
     db.commit()
     db.refresh(question)

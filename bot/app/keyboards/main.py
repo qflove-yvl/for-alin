@@ -2,9 +2,9 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 main_keyboard = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="/create_poll"), KeyboardButton(text="/my_polls")],
-        [KeyboardButton(text="/take_poll"), KeyboardButton(text="/results")],
-        [KeyboardButton(text="/help")],
+        [KeyboardButton(text="📝 Создать опрос"), KeyboardButton(text="📚 Мои опросы")],
+        [KeyboardButton(text="✅ Пройти опрос"), KeyboardButton(text="📊 Результаты")],
+        [KeyboardButton(text="ℹ️ Помощь"), KeyboardButton(text="❌ Отмена")],
     ],
     resize_keyboard=True,
 )
@@ -17,8 +17,8 @@ yes_no_keyboard = ReplyKeyboardMarkup(
 
 question_type_keyboard = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="single_choice"), KeyboardButton(text="multi_choice")],
-        [KeyboardButton(text="scale_1_5"), KeyboardButton(text="open_text")],
+        [KeyboardButton(text="Один вариант"), KeyboardButton(text="Несколько вариантов")],
+        [KeyboardButton(text="Шкала 1-5"), KeyboardButton(text="Свободный текст")],
     ],
     resize_keyboard=True,
     one_time_keyboard=True,
