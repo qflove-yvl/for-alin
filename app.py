@@ -61,6 +61,11 @@ def build_runtime_env(base_dir: Path) -> dict[str, str]:
     for key, value in load_env_file(ENV_FILE).items():
         env.setdefault(key, value)
 
+    # Local single-command mode: bot should call local backend.
+    api_base = env.get("API_BASE_URL", "")
+    if not api_base or "backend:8000" in api_base:
+        env["API_BASE_URL"] = "http://127.0.0.1:8000"
+
     # Local single-command mode uses SQLite by default.
     # Set APP_USE_POSTGRES=1 to keep PostgreSQL URL from .env.
     if env.get("APP_USE_POSTGRES", "0") != "1":
