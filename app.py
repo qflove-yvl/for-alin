@@ -26,6 +26,20 @@ ENV_FILE = ROOT / ".env"
 ENV_EXAMPLE = ROOT / ".env.example"
 
 
+def load_env_file(path: Path) -> dict[str, str]:
+    data: dict[str, str] = {}
+    if not path.exists():
+        return data
+
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        data[key.strip()] = value.strip()
+    return data
+
+
 def ensure_env_file() -> None:
     if ENV_FILE.exists():
         return
@@ -42,6 +56,10 @@ def validate_env() -> None:
 def build_runtime_env(base_dir: Path) -> dict[str, str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(base_dir)
+
+    # Load variables from root .env so child processes can read BOT_TOKEN, etc.
+    for key, value in load_env_file(ENV_FILE).items():
+        env.setdefault(key, value)
 
     # Local single-command mode uses SQLite by default.
     # Set APP_USE_POSTGRES=1 to keep PostgreSQL URL from .env.
