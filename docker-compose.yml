@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-polls}
+      POSTGRES_USER: ${POSTGRES_USER:-polls}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-polls}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.example
+        required: true
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "8000:8000"
+
+  bot:
+    build:
+      context: ./bot
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.example
+        required: true
+    depends_on:
+      - backend
+      - redis
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
